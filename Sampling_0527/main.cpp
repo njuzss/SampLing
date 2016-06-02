@@ -25,8 +25,12 @@ string black_patch_path;
 string models_path;
 string seed_path;
 
+string render_path;
+FileZ fz("");
+
 void initial()
 {
+	
 	model = new GLMmodel*[model_num];
 
 }
@@ -131,9 +135,12 @@ void SaveScreenShot(int clnHeight, int clnWidth)
 	memset(screenData, 0, len);
 	glReadPixels(0, 0, clnWidth, clnHeight, GL_RGB, GL_UNSIGNED_BYTE, screenData);
 
-	int blackindex = (model_index)*view_num + angle / EACHANGLE + 1;
+	/*int blackindex = (model_index)*view_num + angle / EACHANGLE + 1;
 	string blackbmpfilename = black_bmp_path + "\\"
-		+ std::to_string(blackindex) + ".bmp";
+	+ std::to_string(blackindex) + ".bmp";*/
+	int blackindex = angle / EACHANGLE + 1;
+	string blackbmpfilename = black_bmp_path + "\\" + fz.subfile[model_index].substr(0,fz.subfile[model_index].find_first_of('.'))
+		+ "_" + std::to_string(0) + std::to_string(blackindex) + ".bmp";
 
 	BmpImage* image = readbmp(blackbmpfilename);
 
@@ -161,16 +168,16 @@ void SaveScreenShot(int clnHeight, int clnWidth)
 		}
 		//*(model[model_index]->objname)+"_"+
 		string filename = black_patch_path + "\\" + std::to_string((int)(angle / EACHANGLE + 1)) + "\\" +
-			std::to_string((model_index + 1)) + "_" +
+			fz.subfile[model_index].substr(0, fz.subfile[model_index].find_first_of('.')) + "_" +
 			std::to_string((seed_index + 1)) + ".bmp";
 		WriteBitmapFile(filename.data(), PATCHSIZE, PATCHSIZE, (unsigned char*)blackpatch->dataOfBmp);
 		free(blackpatch->dataOfBmp);
 		free(blackpatch);
-		/*string filename2 = "D:\\Program Files (x86)\\2010project\\gltest2\\gltest2\\color\\"+
-		std::to_string(long double(model_index+1))+
-		std::to_string(long double(seed_index+1))+"_"+
-		std::to_string(long double(angle/EACHANGLE+1)) + ".bmp";
-		WriteBitmapFile(filename2.data(),clnWidth,clnHeight,(unsigned char*)screenData);*/
+
+		string render_file = render_path + "\\" + std::to_string((int)(angle / EACHANGLE + 1)) + "\\" +
+			fz.subfile[model_index].substr(0, fz.subfile[model_index].find_first_of('.')) + "_" +
+			std::to_string((seed_index + 1)) + ".bmp";
+		WriteBitmapFile(render_file.data(), clnWidth, clnHeight, (unsigned char*)screenData);
 	}
 	////生成文件名字符串，以时间命名
 	//time_t tm = 0;
@@ -416,6 +423,8 @@ void writeseed(string filename)
 
 int main(int argc, char * argv[])
 {
+
+
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowSize(700, 700);
@@ -434,6 +443,7 @@ int main(int argc, char * argv[])
 	ifs >> tmp >> black_bmp_path 
 		>> tmp >> black_patch_path
 		>> tmp >> models_path
+		>> tmp >> render_path
 		>> tmp >> seed_path
 		>> tmp >> model_num
 		>> tmp >> snum
@@ -452,13 +462,17 @@ int main(int argc, char * argv[])
 			_mkdir(temp.data());
 		}
 	}
+
+	fz.name = models_path;
+	fz.getFiles();
+
 	initial();
 
 	//load all the models
 	getFiles(models_path);
 
 	angle = -EACHANGLE;
-	myd = pow(0.15, 2) * 3;
+	myd = pow(0.3, 2) * 3;
 	setseed();
 	writeseed(seed_path);
 
