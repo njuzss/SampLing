@@ -8,24 +8,36 @@
 #include <sstream>
 #include "io.h"
 #include "direct.h"
+//#include "CommonZ.h"
 
 using namespace std;
+
+class Info
+{
+public:
+	string path;
+	string file;
+	string directory;
+	string name;
+};
 
 class FileZ
 {
 public:
-	FileZ(string name);
+	FileZ();
+	FileZ(string name, string type = NULL, bool subdir = true);
 	bool isExist();
 	void getFiles();
 	void getFiles(string name);
-	void getFiles(string name, string type);
 	void copyFile(string target);
 	void copyFile(string source, string target);
-	void writeResult(string path,string flag);
+	void writeResult(string path, string flag);
 public:
 	string name;
-	vector<string> subfile;
-	vector<string> subpath;
+	string type;
+	bool subdir;
+	vector<Info> files;
+
 };
 
 #endif // !_FILE_H

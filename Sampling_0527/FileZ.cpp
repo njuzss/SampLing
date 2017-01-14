@@ -1,9 +1,16 @@
 #include "FileZ.h"
 
+FileZ::FileZ()
+{
+	this->name = "";
+	this->subdir = true;
+}
 
-FileZ::FileZ(string name)
+FileZ::FileZ(string name, string type, bool subdir)
 {
 	this->name = name;
+	this->type = type;
+	this->subdir = subdir;
 }
 
 bool FileZ::isExist()
@@ -13,21 +20,16 @@ bool FileZ::isExist()
 		return true;
 		/* Check for write permission */
 		/*if ((_access("ACCESS.C", 2)) != -1)
-			printf("File ACCESS.C has write permission ");*/
+		printf("File ACCESS.C has write permission ");*/
 	}
 	else
 		return false;
-	
-}
 
-void FileZ::getFiles()
-{
-	getFiles(this->name);
 }
 
 void FileZ::getFiles(string name)
 {
-	long   hFile = 0;
+	intptr_t   hFile = 0;
 	struct _finddata_t fileinfo;
 	string p;
 
@@ -35,49 +37,33 @@ void FileZ::getFiles(string name)
 	{
 		do
 		{
-			if ((fileinfo.attrib &  _A_SUBDIR))
+			if ((fileinfo.attrib &  _A_SUBDIR) && subdir)
 			{
 				if (strcmp(fileinfo.name, ".") != 0 && strcmp(fileinfo.name, "..") != 0)
 					getFiles(p.assign(name).append("\\").append(fileinfo.name));
 			}
 			else
 			{
-				this->subpath.push_back(name + "\\" + fileinfo.name);
-				this->subfile.push_back(fileinfo.name);
+				string itype(fileinfo.name);
+				itype = itype.substr(itype.find_first_of('.') + 1);
+				if (this->type.empty() || !itype.compare(this->type))
+				{
+					Info info;
+					info.directory = name;
+					info.file = fileinfo.name;
+					info.path = name + "\\" + fileinfo.name;
+					info.name = info.file.substr(0, info.file.find_first_of("."));
+					this->files.push_back(info);
+				}
 			}
 		} while (_findnext(hFile, &fileinfo) == 0);
 		_findclose(hFile);
 	}
 }
 
-void FileZ::getFiles(string name, string type)
+void FileZ::getFiles()
 {
-	long   hFile = 0;
-	struct _finddata_t fileinfo;
-	string p;
-
-	if ((hFile = _findfirst(p.assign(name).append("\\*").c_str(), &fileinfo)) != -1)
-	{
-		do
-		{
-			if ((fileinfo.attrib &  _A_SUBDIR))
-			{
-				if (strcmp(fileinfo.name, ".") != 0 && strcmp(fileinfo.name, "..") != 0)
-					getFiles(p.assign(name).append("\\").append(fileinfo.name), type);
-			}
-			else
-			{
-				string itype(fileinfo.name);
-				itype = itype.substr(itype.find_first_of('.')+1);
-				if (itype == type)
-				{
-					this->subpath.push_back(name);
-					this->subfile.push_back(fileinfo.name);
-				}
-			}
-		} while (_findnext(hFile, &fileinfo) == 0);
-		_findclose(hFile);
-	}
+	getFiles(this->name);
 }
 
 void FileZ::copyFile(string target)
@@ -91,7 +77,7 @@ void FileZ::copyFile(string target)
 	f1.close();
 }
 
-void FileZ::writeResult(string path,string flag)
+void FileZ::writeResult(string path, string flag)
 {
 	ofstream ofs;
 	ofs.open(path);
@@ -101,19 +87,19 @@ void FileZ::writeResult(string path,string flag)
 	}
 	if (flag == "f")
 	{
-		for (auto it = this->subfile.begin(); it != this->subfile.end(); it++)
-		{
-			ofs << *it << endl;
-		}
+		//for (auto it = this->subfile.begin(); it != this->subfile.end(); it++)
+		//{
+		//	ofs << *it << endl;
+		//}
 	}
 	else if (flag == "p")
 	{
-		for (auto it = this->subpath.begin(); it != this->subpath.end(); it++)
+		/*for (auto it = this->subpath.begin(); it != this->subpath.end(); it++)
 		{
-			ofs << *it << endl;
-		}
+		ofs << *it << endl;
+		}*/
 	}
-	
+
 
 	ofs.close();
 }

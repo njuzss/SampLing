@@ -3,6 +3,7 @@
 
 
 #include <gl\glut.h>
+//#include "CommonZ.h"
 #include <string>
 
 #ifndef M_PI
@@ -79,7 +80,8 @@ typedef struct _GLMmodel {
 
 	bool *isstyle;
 
-	GLuint numseeds;	
+	GLuint numseeds;
+	GLuint seed_current;
 	GLfloat *seeds;
 
 	//v

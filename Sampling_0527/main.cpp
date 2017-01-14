@@ -1,45 +1,136 @@
 
 #include "FileZ.h"
+#include "CommonZ.h"
 #include "model.h"
 #include "readbmp.h"
 #include "windows.h"
 #include "direct.h"
 #include "time.h"
+#include <iostream>
 
 using namespace std;
 
-GLfloat EACHANGLE = 0;
-GLint PATCHSIZE = 0;
-GLMmodel **model;
-double myd = 0.0;
+GLfloat angle_interval = 0;
+GLint patch_size = 0;
+GLMmodel *model;
+double threshold = 0.0;
 GLfloat angle = 0;
-GLfloat angledoor = 0;
+GLfloat angle_max = 0;
+GLfloat radius = 0.0;
 
-int model_num = 0;
-int model_index = 0;
-int seed_index = 0;
+
+int model_current = 0;
+
 int snum = 0;
 int view_num = 0;
-string black_bmp_path;
-string black_patch_path;
+string projection_path;
+string path_path;
 string models_path;
 string seed_path;
 
 string render_path;
-FileZ fz("");
+FileZ fz;
+GLint mlist;
 
-void initial()
+
+//Sampling seeds
+void setSeeds()
 {
-	
-	model = new GLMmodel*[model_num];
+	cout << "Set seed ..." << endl;
+
+
+	model->numseeds = snum;
+	model->seeds = (GLfloat *)malloc(sizeof(GLfloat) *
+		3 * (model->numseeds));
+
+	model->iscolored = new bool[model->numseeds * model->numtriangles];
+	for (int i = 0; i < (model->numseeds * model->numtriangles); i++)
+		model->iscolored[i] = false;
+
+	//srand((unsigned)time(NULL));
+	for (int i = 0; i < model->numseeds; i++)
+	{		
+		unsigned long index = ulrand() % model->numtriangles;
+		int temp = 0;
+		while (temp < 1000)
+		{
+			bool tag = true;
+			for (int ttt = 0; ttt < model->numseeds; ttt++){
+				//if the seed is in the colored area, then discard it
+				if (model->iscolored[ttt*model->numtriangles + index])
+				{
+					tag = false;
+					break;
+				}
+			}
+			if (tag)
+				break;
+			else
+			{
+				index = rand() % model->numtriangles;
+				temp++;
+			}
+		}
+
+		if (temp == 1000)
+		{
+			//TODO
+			cout << "it is hard to find a new candidate seed" << endl;
+		}
+
+		//select the first point of the face as the seed
+		int vindex = model->triangles[index].vindices[0];
+		model->seeds[3 * i + 0] = model->vertices[vindex * 3 + 0];
+		model->seeds[3 * i + 1] = model->vertices[vindex * 3 + 1];
+		model->seeds[3 * i + 2] = model->vertices[vindex * 3 + 2];
+
+		for (int j = 0; j < model->numtriangles; j++)
+		{
+			double distance0 = pow(model->vertices[model->triangles[j].vindices[0] * 3 + 0] - model->seeds[3 * i + 0], 2) +
+				pow(model->vertices[model->triangles[j].vindices[0] * 3 + 1] - model->seeds[3 * i + 1], 2) +
+				pow(model->vertices[model->triangles[j].vindices[0] * 3 + 2] - model->seeds[3 * i + 2], 2);
+
+			double distance1 = pow(model->vertices[model->triangles[j].vindices[1] * 3 + 0] - model->seeds[3 * i + 0], 2) +
+				pow(model->vertices[model->triangles[j].vindices[1] * 3 + 1] - model->seeds[3 * i + 1], 2) +
+				pow(model->vertices[model->triangles[j].vindices[1] * 3 + 2] - model->seeds[3 * i + 2], 2);
+
+			double distance2 = pow(model->vertices[model->triangles[j].vindices[2] * 3 + 0] - model->seeds[3 * i + 0], 2) +
+				pow(model->vertices[model->triangles[j].vindices[2] * 3 + 1] - model->seeds[3 * i + 1], 2) +
+				pow(model->vertices[model->triangles[j].vindices[2] * 3 + 2] - model->seeds[3 * i + 2], 2);
+
+			//Premise: three points of face are all covered
+			if (distance0 < threshold && distance1 < threshold && distance2 < threshold)
+			{
+				model->iscolored[i*model->numtriangles + j] = true;
+			}
+		}
+	}
 
 }
+
+void writeSeeds()
+{
+	ofstream ofile;
+	ofile.open(seed_path, ios::app);
+	if (ofile.fail())
+	{
+		cout << "failed to open seed file" << endl;
+		exit(2);
+	}
+
+	ofile << model->objname << endl;
+	for (int j = 0; j < model->numseeds; j++)
+	{
+		ofile << model->seeds[3 * j + 0] << " " << model->seeds[3 * j + 1] << " " << model->seeds[3 * j + 2] << endl;
+	}
+
+	ofile.close();
+}
+
+
+
 void del()
 {
-	for (int i = 0; i<model_num; i++)
-	{
-		glmDelete(model[i]);
-	}
 	delete[] model;
 }
 
@@ -60,21 +151,6 @@ void GL_myInitial()
 	glEnable(GL_LIGHT0);
 	glDepthFunc(GL_LESS);
 	glEnable(GL_DEPTH_TEST);
-}
-
-//视角设置
-void reshape(int w, int h)
-{
-	glViewport(0, 0, (GLsizei)w, (GLsizei)h);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	//gluPerspective(60.0,(GLfloat)w/(GLfloat)h,1.0,20.0);
-	glOrtho(-2, 2, -2, 2, 1.0, 20.0);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	gluLookAt(0, -1.732 * 2, 1 * 2,
-		0, 0, 0,
-		0, 1 * 2, 1.732 * 2);
 }
 
 BOOL WriteBitmapFile(const char * filename, int width, int height, unsigned char * bitmapData)
@@ -125,7 +201,8 @@ BOOL WriteBitmapFile(const char * filename, int width, int height, unsigned char
 	fclose(filePtr);
 	return TRUE;
 }
-void SaveScreenShot(int clnHeight, int clnWidth)
+
+void saveScreenShot(int clnHeight, int clnWidth)
 {
 	//int clnHeight,clnWidth;	//client width and height
 	static void * screenData;
@@ -135,14 +212,14 @@ void SaveScreenShot(int clnHeight, int clnWidth)
 	memset(screenData, 0, len);
 	glReadPixels(0, 0, clnWidth, clnHeight, GL_RGB, GL_UNSIGNED_BYTE, screenData);
 
-	/*int blackindex = (model_index)*view_num + angle / EACHANGLE + 1;
-	string blackbmpfilename = black_bmp_path + "\\"
+	/*int blackindex = (model_current)*view_num + angle / angle_interval + 1;
+	string blackbmpfilename = projection_path + "\\"
 	+ std::to_string(blackindex) + ".bmp";*/
-	int blackindex = angle / EACHANGLE + 1;
-	string blackbmpfilename = black_bmp_path + "\\" + fz.subfile[model_index].substr(0,fz.subfile[model_index].find_first_of('.'))
-		+ "_" + std::to_string(0) + std::to_string(blackindex) + ".bmp";
+	int view_current = angle / angle_interval + 1;
+	string projection_file = projection_path + "\\" + fz.files[model_current].name
+		+ "_" + std::to_string(0) + std::to_string(view_current) + ".bmp";
 
-	BmpImage* image = readbmp(blackbmpfilename);
+	BmpImage* image = readbmp(projection_file);
 
 	Patch * mypatch = getpatch((unsigned char *)screenData, clnWidth, clnHeight);
 	//如果看得到被选中的区域
@@ -150,33 +227,35 @@ void SaveScreenShot(int clnHeight, int clnWidth)
 	{
 		//左下角点
 		BmpImage* blackpatch = NULL;
-		if (ceil(mypatch->x1*image->width) + PATCHSIZE - 1 <= image->width && ceil(mypatch->y1*image->height) + PATCHSIZE - 1 <= image->height)
-			blackpatch = imcrop(image, (int)ceil(mypatch->x1*image->width), (int)ceil(mypatch->y1*image->height), PATCHSIZE - 1);
+		if (ceil(mypatch->x1*image->width) + patch_size - 1 <= image->width && ceil(mypatch->y1*image->height) + patch_size - 1 <= image->height)
+			blackpatch = imcrop(image, (int)ceil(mypatch->x1*image->width), (int)ceil(mypatch->y1*image->height), patch_size - 1);
 		//右下角
-		else if (mypatch->x2*image->width - PATCHSIZE + 1 >= 1 && ceil(mypatch->y1*image->height) + PATCHSIZE - 1 <= image->height)
-			blackpatch = imcrop(image, (int)floor(mypatch->x2*image->width - PATCHSIZE + 1), (int)ceil(mypatch->y1*image->height), PATCHSIZE - 1);
+		else if (mypatch->x2*image->width - patch_size + 1 >= 1 && ceil(mypatch->y1*image->height) + patch_size - 1 <= image->height)
+			blackpatch = imcrop(image, (int)floor(mypatch->x2*image->width - patch_size + 1), (int)ceil(mypatch->y1*image->height), patch_size - 1);
 		//左上角
-		else if (ceil(mypatch->x1*image->width) + PATCHSIZE - 1 <= image->width && mypatch->y2*image->height - PATCHSIZE + 1 >= 1)
-			blackpatch = imcrop(image, (int)ceil(mypatch->x1*image->width), (int)floor(mypatch->y2*image->height - PATCHSIZE + 1), PATCHSIZE - 1);
+		else if (ceil(mypatch->x1*image->width) + patch_size - 1 <= image->width && mypatch->y2*image->height - patch_size + 1 >= 1)
+			blackpatch = imcrop(image, (int)ceil(mypatch->x1*image->width), (int)floor(mypatch->y2*image->height - patch_size + 1), patch_size - 1);
 		//右上角
-		else if (mypatch->x2*image->width - PATCHSIZE + 1 >= 1 && mypatch->y2*image->height - PATCHSIZE + 1 >= 1)
-			blackpatch = imcrop(image, (int)floor(mypatch->x2*image->width - PATCHSIZE + 1), (int)floor(mypatch->y2*image->height - PATCHSIZE + 1), PATCHSIZE - 1);
+		else if (mypatch->x2*image->width - patch_size + 1 >= 1 && mypatch->y2*image->height - patch_size + 1 >= 1)
+			blackpatch = imcrop(image, (int)floor(mypatch->x2*image->width - patch_size + 1), (int)floor(mypatch->y2*image->height - patch_size + 1), patch_size - 1);
 		else//图片太小
 		{
 			free(screenData);
 			return;
 		}
-		//*(model[model_index]->objname)+"_"+
-		string filename = black_patch_path + "\\" + std::to_string((int)(angle / EACHANGLE + 1)) + "\\" +
-			fz.subfile[model_index].substr(0, fz.subfile[model_index].find_first_of('.')) + "_" +
-			std::to_string((seed_index + 1)) + ".bmp";
-		WriteBitmapFile(filename.data(), PATCHSIZE, PATCHSIZE, (unsigned char*)blackpatch->dataOfBmp);
+		//*(model[model_current]->objname)+"_"+
+		string patch_file = path_path + "\\" + std::to_string(view_current) + "\\" +
+			fz.files[model_current].name + "_" +
+			std::to_string((model->seed_current + 1)) + ".bmp";
+
+		//cout << "What the hell" << endl;
+		WriteBitmapFile(patch_file.data(), patch_size, patch_size, (unsigned char*)blackpatch->dataOfBmp);
 		free(blackpatch->dataOfBmp);
 		free(blackpatch);
 
-		string render_file = render_path + "\\" + std::to_string((int)(angle / EACHANGLE + 1)) + "\\" +
-			fz.subfile[model_index].substr(0, fz.subfile[model_index].find_first_of('.')) + "_" +
-			std::to_string((seed_index + 1)) + ".bmp";
+		string render_file = render_path + "\\" + std::to_string((int)(angle / angle_interval + 1)) + "\\" +
+			fz.files[model_current].name + "_" +
+			std::to_string((model->seed_current + 1)) + ".bmp";
 		WriteBitmapFile(render_file.data(), clnWidth, clnHeight, (unsigned char*)screenData);
 	}
 	////生成文件名字符串，以时间命名
@@ -192,11 +271,60 @@ void SaveScreenShot(int clnHeight, int clnWidth)
 	free(mypatch);
 	free(screenData);
 }
-//显示模型
-void renderScene()
+
+void initialize()
 {
-	/*if(!model[model_index]->isstyle[seed_index])
-	return;*/
+	//initialize parameters
+	ifstream ifs;
+	ifs.open("params.cfg");
+	if (ifs.fail())
+	{
+		cout << "can't open parameters file" << endl;
+	}
+	string tmp;
+	ifs >> tmp >> projection_path
+		>> tmp >> path_path
+		>> tmp >> models_path
+		>> tmp >> render_path
+		>> tmp >> seed_path
+		>> tmp >> snum
+		>> tmp >> view_num
+		>> tmp >> angle_max
+		>> tmp >> patch_size
+		>> tmp >> angle_interval 
+		>> tmp >> radius;
+
+	ifs.close();
+
+	//mkdir
+	for (int i = 1; i <= view_num; i++)
+	{
+		string temp = path_path + "\\" + to_string(i);
+		FileZ tmp;
+		tmp.name = temp;
+		if (!tmp.isExist())
+		{
+			_mkdir(temp.data());
+		}
+	}
+
+	//initialize view
+	//angle = -angle_interval;
+	angle = 0;
+	threshold = pow(radius, 2) * 3;
+
+	//initial model
+	fz.name = models_path;
+	fz.type = "obj";
+	fz.getFiles();
+	model = glmReadOBJ(const_cast<char *>(fz.files[model_current].path.c_str()), fz.files[model_current].file);
+	setSeeds();
+	
+
+}
+
+void initRendering()
+{
 	glClearColor(1.0, 1.0, 1.0, 0.0);
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
@@ -225,265 +353,120 @@ void renderScene()
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, mat_diffuse);
 	glLightfv(GL_LIGHT0, GL_SPECULAR, mat_specular);
 
-	glLightfv(GL_LIGHT1, GL_AMBIENT, mat_ambient);
+	/*glLightfv(GL_LIGHT1, GL_AMBIENT, mat_ambient);
 	glLightfv(GL_LIGHT1, GL_DIFFUSE, mat_diffuse);
-	glLightfv(GL_LIGHT1, GL_SPECULAR, mat_specular);
+	glLightfv(GL_LIGHT1, GL_SPECULAR, mat_specular);*/
 
 	glEnable(GL_COLOR_MATERIAL);
 	glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
 	glDisable(GL_CULL_FACE);
 
-	glPushMatrix();
-	glRotatef((GLfloat)angle, 0, 0, 1);
-	for (int i = 0; i<model[model_index]->numtriangles; i++)
-	{
-		//glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); 
-
-		glBegin(GL_TRIANGLES);
-
-		if (model[model_index]->iscolored[seed_index*model[model_index]->numtriangles + i] == false)
-		{
-			glColor3f(0.71f, 0.71f, 0.71f);
-		}
-		else
-		{
-			glColor3f(0.0f, 0.0f, 8.0f);
-		}
-
-
-		int ifindex = model[model_index]->triangles[i].findex;
-		glNormal3f(model[model_index]->facetnorms[3 * ifindex], model[model_index]->facetnorms[3 * ifindex + 1], model[model_index]->facetnorms[3 * ifindex + 2]);
-
-		glVertex3f(model[model_index]->vertices[model[model_index]->triangles[i].vindices[0] * 3 + 0],
-			model[model_index]->vertices[model[model_index]->triangles[i].vindices[0] * 3 + 1],
-			model[model_index]->vertices[model[model_index]->triangles[i].vindices[0] * 3 + 2]);
-
-		glVertex3f(model[model_index]->vertices[model[model_index]->triangles[i].vindices[1] * 3 + 0],
-			model[model_index]->vertices[model[model_index]->triangles[i].vindices[1] * 3 + 1],
-			model[model_index]->vertices[model[model_index]->triangles[i].vindices[1] * 3 + 2]);
-
-		glVertex3f(model[model_index]->vertices[model[model_index]->triangles[i].vindices[2] * 3 + 0],
-			model[model_index]->vertices[model[model_index]->triangles[i].vindices[2] * 3 + 1],
-			model[model_index]->vertices[model[model_index]->triangles[i].vindices[2] * 3 + 2]);
-
-
-		glEnd();
-	}
-
-	glPopMatrix();
-	SaveScreenShot(700, 700);
-	glutSwapBuffers();
-	//Sleep(1000);
-	//glutPostRedisplay();
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	gluLookAt(0, -1.732 * 2, 1 * 2,
+		0, 0, 0,
+		0, 1 * 2, 1.732 * 2);
+	mlist = glmList(model, 0);
 }
 
-void Update(void) {
+void reshape(int w, int h)
+{
+	glViewport(0, 0, (GLsizei)w, (GLsizei)h);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	//gluPerspective(60.0,(GLfloat)w/(GLfloat)h,1.0,20.0);
+	glOrtho(-2, 2, -2, 2, 1.0, 20.0);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	gluLookAt(0, -1.732 * 2, 1 * 2,
+		0, 0, 0,
+		0, 1 * 2, 1.732 * 2);
+}
 
-	//Sleep(100);
-	//if(model[model_index]->isstyle[seed_index])
+void render()
+{
+	/*if(!model[model_current]->isstyle[model->seed_current])
+	return;*/
+
+	glPushMatrix();
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glRotatef((GLfloat)angle, 0, 0, 1);
+
+	glCallList(mlist);
+
+	glPopMatrix();
+	
+	
+	saveScreenShot(700, 700);
+	glutSwapBuffers();
+
+	if (angle > angle_max)
+	{
+		angle = 0;
+		model->seed_current++;
+		if (model->seed_current == snum)//当该模型的所有种子遍历了
+		{
+			cout << model->objname->data() << " done!" << endl;
+
+			model_current++;
+
+			//save seeds
+			writeSeeds();
+			del();
+			//read the next model
+			if (model_current == fz.files.size())
+				exit(0);
+			else
+			{
+				model = glmReadOBJ(const_cast<char *>(fz.files[model_current].path.c_str()), fz.files[model_current].file);
+				setSeeds();
+			}
+
+		}
+		mlist = glmList(model, 0);
+	}
+	else{
+		angle = angle + angle_interval;
+	}
+	//Sleep(1000);
+	glutPostRedisplay();
+}
+
+void update(void) {
+
+	//Sleep(1000);
+	//if(model[model_current]->isstyle[model->seed_current])
+	saveScreenShot(700, 700);
 	glutPostRedisplay();
 
 	//if(angle > 329.0)//当所有视角转了一遍
 
-	if (angle > angledoor)
-	{
-		angle = 0;
-		seed_index++;
-		if (seed_index == snum)//当该模型的所有种子遍历了
-		{
-			cout << model[model_index]->objname->data() << "绘制完成" << endl;
-			seed_index = 0;
-			model_index++;
-
-			if (model_index == model_num)
-				exit(0);
-		}
-	}
-	else{
-		angle = angle + EACHANGLE;
-
-	}
+	
 }
 
-//将文件内容读到数组中去 
-void getFiles(string path)
-{
-
-	long   hFile = 0;
-	int i = 0;
-	struct _finddata_t fileinfo;
-	string p;
-	if ((hFile = _findfirst(p.assign(path).append("\\*").c_str(), &fileinfo)) != -1)
-	{
-		do
-		{
-			if ((fileinfo.attrib &  _A_SUBDIR))
-				continue;
-
-			if (strcmp(fileinfo.name, ".") != 0 && strcmp(fileinfo.name, "..") != 0)
-			{
-				string filename = fileinfo.name;
-				//.obj file
-				if (filename.substr(filename.find_first_of(".")) == ".obj")
-				{
-					string temp = path + "\\" + filename;
-					cout << "reading " << temp << endl;
-					model[i] = glmReadOBJ(const_cast<char *>(temp.c_str()), filename);
-					glmFacetNormals(model[i]);
-					i++;
-				}
-			}
-		} while (_findnext(hFile, &fileinfo) == 0);
-		_findclose(hFile);
-	}
-}
-
-//设置随机种子并着色
-void setseed()
-{
-	cout << "设置种子" << endl;
-
-	for (int k = 0; k<model_num; k++)
-	{
-		model[k]->numseeds = snum;
-		model[k]->seeds = (GLfloat *)malloc(sizeof(GLfloat) *
-			3 * (model[k]->numseeds));
-
-		model[k]->iscolored = new bool[model[k]->numseeds * model[k]->numtriangles];
-		for (int i = 0; i<(model[k]->numseeds * model[k]->numtriangles); i++)
-			model[k]->iscolored[i] = false;
-
-		for (int i = 0; i<model[k]->numseeds; i++)
-		{
-			//srand((unsigned)time(NULL));
-			int index = rand() % model[k]->numtriangles;
-			int temp = 0;
-			while (temp<1000)
-			{
-				bool tag = true;
-				for (int ttt = 0; ttt<model[k]->numseeds; ttt++){
-					//如果已经被涂色，抛弃这个种子
-					if (model[k]->iscolored[ttt*model[k]->numtriangles + index])
-					{
-						tag = false;
-						break;
-					}
-				}
-				//如果这个种子可以用
-				if (tag)
-					break;
-				else
-				{
-					index = rand() % model[k]->numtriangles;
-					temp++;
-				}
-			}
-			model[k]->seeds[3 * i + 0] = model[k]->vertices[model[k]->triangles[index].vindices[0] * 3 + 0];
-			model[k]->seeds[3 * i + 1] = model[k]->vertices[model[k]->triangles[index].vindices[0] * 3 + 1];
-			model[k]->seeds[3 * i + 2] = model[k]->vertices[model[k]->triangles[index].vindices[0] * 3 + 2];
-
-			for (int j = 0; j<model[k]->numtriangles; j++)
-			{
-				double distance0 = pow(model[k]->vertices[model[k]->triangles[j].vindices[0] * 3 + 0] - model[k]->seeds[3 * i + 0], 2) +
-					pow(model[k]->vertices[model[k]->triangles[j].vindices[0] * 3 + 1] - model[k]->seeds[3 * i + 1], 2) +
-					pow(model[k]->vertices[model[k]->triangles[j].vindices[0] * 3 + 2] - model[k]->seeds[3 * i + 2], 2);
-
-				double distance1 = pow(model[k]->vertices[model[k]->triangles[j].vindices[1] * 3 + 0] - model[k]->seeds[3 * i + 0], 2) +
-					pow(model[k]->vertices[model[k]->triangles[j].vindices[1] * 3 + 1] - model[k]->seeds[3 * i + 1], 2) +
-					pow(model[k]->vertices[model[k]->triangles[j].vindices[1] * 3 + 2] - model[k]->seeds[3 * i + 2], 2);
-
-				double distance2 = pow(model[k]->vertices[model[k]->triangles[j].vindices[2] * 3 + 0] - model[k]->seeds[3 * i + 0], 2) +
-					pow(model[k]->vertices[model[k]->triangles[j].vindices[2] * 3 + 1] - model[k]->seeds[3 * i + 1], 2) +
-					pow(model[k]->vertices[model[k]->triangles[j].vindices[2] * 3 + 2] - model[k]->seeds[3 * i + 2], 2);
-				//需要所有点都在范围内
-				if (distance0 < myd && distance1 < myd && distance2 <myd)
-				{
-					model[k]->iscolored[i*model[k]->numtriangles + j] = true;
-				}
-			}
-		}
-	}
-}
-
-void writeseed(string filename)
-{
-	ofstream ofile;               
-	ofile.open(filename);    
-	for (int i = 0; i<model_num; i++)
-	{
-		ofile << model[i]->objname->data() << endl;
-		for (int j = 0; j<model[i]->numseeds; j++)
-		{
-			ofile << model[i]->seeds[3 * j + 0] << " " << model[i]->seeds[3 * j + 1] << " " << model[i]->seeds[3 * j + 2] << endl;
-		}
-	}
-	ofile.close();                
-}
 
 
 int main(int argc, char * argv[])
 {
 
+	clock_t start = clock();
+
+	initialize();
+	//isincube();
+	//GL_myInitial();//
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowSize(700, 700);
 	glutInitWindowPosition(700, 100);     
 	glutCreateWindow("Sampling parts");
-	//GL_myInitial();//一种光照方法
-	
-	clock_t start = clock();
-	ifstream ifs;
-	ifs.open("params.cfg");
-	if (ifs.fail())
-	{
-		cout << "can't open parameters file" << endl;
-	}
-	string tmp;
-	ifs >> tmp >> black_bmp_path 
-		>> tmp >> black_patch_path
-		>> tmp >> models_path
-		>> tmp >> render_path
-		>> tmp >> seed_path
-		>> tmp >> model_num
-		>> tmp >> snum
-		>> tmp >> view_num
-		>> tmp >> angledoor
-		>> tmp >> PATCHSIZE
-		>> tmp >> EACHANGLE;
-	ifs.close();
-
-	for (int i = 1; i <= view_num; i++)
-	{
-		string temp = black_patch_path + "\\" + to_string(i);
-		FileZ fz(temp);
-		if (!fz.isExist())
-		{
-			_mkdir(temp.data());
-		}
-	}
-
-	fz.name = models_path;
-	fz.getFiles();
-
-	initial();
-
-	//load all the models
-	getFiles(models_path);
-
-	angle = -EACHANGLE;
-	myd = pow(0.3, 2) * 3;
-	setseed();
-	writeseed(seed_path);
-
-	//isincube();//给指定区域着色
-
-	glutDisplayFunc(renderScene);
+	initRendering();
+	glutDisplayFunc(render);
 	glutReshapeFunc(reshape);
-	glutIdleFunc(&Update);
+//	glutIdleFunc(&update);
 	glutMainLoop();
 	
-	del();
+	
 
 	clock_t end = clock();
 	cout << "it takes " << (end - start) / 1000 << "seconds" << endl;
