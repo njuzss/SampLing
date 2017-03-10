@@ -6,6 +6,7 @@
 #include "windows.h"
 #include "direct.h"
 #include "time.h"
+#include "stdio.h"
 #include <iostream>
 
 using namespace std;
@@ -24,7 +25,7 @@ int model_current = 0;
 int snum = 0;
 int view_num = 0;
 string projection_path;
-string path_path;
+string patch_path;
 string models_path;
 string seed_path;
 
@@ -118,7 +119,7 @@ void writeSeeds()
 		exit(2);
 	}
 
-	ofile << model->objname << endl;
+	ofile << fz.files[model_current].name << endl;
 	for (int j = 0; j < model->numseeds; j++)
 	{
 		ofile << model->seeds[3 * j + 0] << " " << model->seeds[3 * j + 1] << " " << model->seeds[3 * j + 2] << endl;
@@ -243,19 +244,29 @@ void saveScreenShot(int clnHeight, int clnWidth)
 			free(screenData);
 			return;
 		}
-		//*(model[model_current]->objname)+"_"+
-		string patch_file = path_path + "\\" + std::to_string(view_current) + "\\" +
-			fz.files[model_current].name + "_" +
-			std::to_string((model->seed_current + 1)) + ".bmp";
+
+		char seed_index[100];
+		sprintf(seed_index, "%02d", (model->seed_current + 1));
+		string index_seed(seed_index);
+
+		string patch_file = patch_path + "\\" + 
+			fz.files[model_current].name + "_" + 
+			index_seed + "_" +
+			to_string(view_current) + 
+			 ".bmp";
+		
+
 
 		//cout << "What the hell" << endl;
 		WriteBitmapFile(patch_file.data(), patch_size, patch_size, (unsigned char*)blackpatch->dataOfBmp);
 		free(blackpatch->dataOfBmp);
 		free(blackpatch);
 
-		string render_file = render_path + "\\" + std::to_string((int)(angle / angle_interval + 1)) + "\\" +
+		string render_file = render_path + "\\" +
 			fz.files[model_current].name + "_" +
-			std::to_string((model->seed_current + 1)) + ".bmp";
+			index_seed + "_" +
+			to_string(view_current) + 
+			".bmp";
 		WriteBitmapFile(render_file.data(), clnWidth, clnHeight, (unsigned char*)screenData);
 	}
 	////生成文件名字符串，以时间命名
@@ -283,7 +294,7 @@ void initialize()
 	}
 	string tmp;
 	ifs >> tmp >> projection_path
-		>> tmp >> path_path
+		>> tmp >> patch_path
 		>> tmp >> models_path
 		>> tmp >> render_path
 		>> tmp >> seed_path
@@ -297,16 +308,16 @@ void initialize()
 	ifs.close();
 
 	//mkdir
-	for (int i = 1; i <= view_num; i++)
+	/*for (int i = 1; i <= view_num; i++)
 	{
-		string temp = path_path + "\\" + to_string(i);
+		string temp = patch_path + "\\" + to_string(i);
 		FileZ tmp;
 		tmp.name = temp;
 		if (!tmp.isExist())
 		{
 			_mkdir(temp.data());
 		}
-	}
+	}*/
 
 	//initialize view
 	//angle = -angle_interval;
@@ -408,11 +419,10 @@ void render()
 		{
 			cout << model->objname->data() << " done!" << endl;
 
-			model_current++;
-
 			//save seeds
 			writeSeeds();
 			del();
+			model_current++;
 			//read the next model
 			if (model_current == fz.files.size())
 				exit(0);
