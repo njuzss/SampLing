@@ -73,11 +73,11 @@ void setSeeds()
 			}
 		}
 
-		if (temp == 1000)
-		{
-			//TODO
-			cout << "it is hard to find a new candidate seed" << endl;
-		}
+		//if (temp == 1000)
+		//{
+		//	//TODO
+		//	cout << "it is hard to find a new candidate seed" << endl;
+		//}
 
 		//select the first point of the face as the seed
 		int vindex = model->triangles[index].vindices[0];
@@ -218,7 +218,7 @@ void saveScreenShot(int clnHeight, int clnWidth)
 	+ std::to_string(blackindex) + ".bmp";*/
 	int view_current = angle / angle_interval + 1;
 	string projection_file = projection_path + "\\" + fz.files[model_current].name
-		+ "_" + std::to_string(0) + std::to_string(view_current) + ".bmp";
+		+ "_"  + std::to_string(view_current) + ".bmp";
 
 	BmpImage* image = readbmp(projection_file);
 
@@ -250,7 +250,7 @@ void saveScreenShot(int clnHeight, int clnWidth)
 		string index_seed(seed_index);
 
 		string patch_file = patch_path + "\\" + 
-			fz.files[model_current].name + "_" + 
+			fz.files[model_current].name + "_" +
 			index_seed + "_" +
 			to_string(view_current) + 
 			 ".bmp";
@@ -262,12 +262,12 @@ void saveScreenShot(int clnHeight, int clnWidth)
 		free(blackpatch->dataOfBmp);
 		free(blackpatch);
 
-		string render_file = render_path + "\\" +
+		/*string render_file = render_path + "\\" +
 			fz.files[model_current].name + "_" +
 			index_seed + "_" +
-			to_string(view_current) + 
+			to_string(view_current) +
 			".bmp";
-		WriteBitmapFile(render_file.data(), clnWidth, clnHeight, (unsigned char*)screenData);
+			WriteBitmapFile(render_file.data(), clnWidth, clnHeight, (unsigned char*)screenData);*/
 	}
 	////生成文件名字符串，以时间命名
 	//time_t tm = 0;
@@ -323,12 +323,12 @@ void initialize()
 	//angle = -angle_interval;
 	angle = 0;
 	threshold = pow(radius, 2) * 3;
-
+	
 	//initial model
 	fz.name = models_path;
 	fz.type = "obj";
 	fz.getFiles();
-	model = glmReadOBJ(const_cast<char *>(fz.files[model_current].path.c_str()), fz.files[model_current].file);
+	model = glmReadOBJ(const_cast<char *>(fz.files[model_current].path.c_str()));
 	setSeeds();
 	
 
@@ -417,22 +417,29 @@ void render()
 		model->seed_current++;
 		if (model->seed_current == snum)//当该模型的所有种子遍历了
 		{
-			cout << model->objname->data() << " done!" << endl;
+			cout << fz.files[model_current].file << " done!" << endl;
 
 			//save seeds
 			writeSeeds();
-			del();
+			glmDelete(model);		
 			model_current++;
 			//read the next model
 			if (model_current == fz.files.size())
+			{
+				cout << "All shapes have been handled!" << endl;
+				cin.get();
 				exit(0);
+			}
 			else
 			{
-				model = glmReadOBJ(const_cast<char *>(fz.files[model_current].path.c_str()), fz.files[model_current].file);
+				model = glmReadOBJ(const_cast<char *>(fz.files[model_current].path.c_str()));
 				setSeeds();
 			}
-
+					
 		}
+		//Notice: delete the previous list before create a new one,
+		//otherwise, memory explosion will happen !
+		glDeleteLists(mlist, 1);
 		mlist = glmList(model, 0);
 	}
 	else{

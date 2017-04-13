@@ -1102,9 +1102,8 @@ GLvoid glmDelete(GLMmodel * model)
 	if(model->iscolored)
 		free(model->iscolored);
 	if(model->isstyle)
-		free(model->isstyle);
-	if(model->objname)
-		free(model->objname);
+		delete(model->isstyle);
+
 	free(model->materials);
 	while (model->groups) {
 		group = model->groups;
@@ -1123,7 +1122,7 @@ GLvoid glmDelete(GLMmodel * model)
 *
 * filename - name of the file containing the Wavefront .OBJ format data.
 */
-GLMmodel *glmReadOBJ(char *filename,std::string objname)
+GLMmodel *glmReadOBJ(char *filename)
 {
 	GLMmodel *model;
 	FILE *file;
@@ -1141,7 +1140,7 @@ GLMmodel *glmReadOBJ(char *filename,std::string objname)
 	model = (GLMmodel *)malloc(sizeof(GLMmodel));
 	model->pathname = _strdup(filename);
 	model->seed_current = 0;
-	model->objname = new std::string(objname);
+
 	model->mtllibname = NULL;
 	model->numvertices = 0;
 	model->vertices = NULL;
