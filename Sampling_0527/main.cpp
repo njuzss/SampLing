@@ -33,6 +33,9 @@ string render_path;
 FileZ fz;
 GLint mlist;
 
+clock_t start;
+clock_t finish;
+
 
 //Sampling seeds
 void setSeeds()
@@ -283,11 +286,18 @@ void saveScreenShot(int clnHeight, int clnWidth)
 	free(screenData);
 }
 
-void initialize()
+void initialize(string params)
 {
 	//initialize parameters
+	if (params.empty())
+	{
+		cout << "please input the parameters file" << endl;
+		cin.get();
+		exit(0);
+	}
+
 	ifstream ifs;
-	ifs.open("params.cfg");
+	ifs.open(params);
 	if (ifs.fail())
 	{
 		cout << "can't open parameters file" << endl;
@@ -426,8 +436,9 @@ void render()
 			//read the next model
 			if (model_current == fz.files.size())
 			{
-				cout << "All shapes have been handled!" << endl;
-				cin.get();
+				cout << "All " << fz.files[model_current].name << "shapes have been handled!" << endl;
+				finish = clock();
+				cout << "it takes " << (finish - start) / 1000 << "seconds" << endl;
 				exit(0);
 			}
 			else
@@ -466,9 +477,9 @@ void update(void) {
 int main(int argc, char * argv[])
 {
 
-	clock_t start = clock();
+	start = clock();
 
-	initialize();
+	initialize(argv[1]);
 	//isincube();
 	//GL_myInitial();//
 
@@ -485,9 +496,8 @@ int main(int argc, char * argv[])
 	
 	
 
-	clock_t end = clock();
-	cout << "it takes " << (end - start) / 1000 << "seconds" << endl;
-	cin.get();
+	
+	//cin.get();
 	return 0;
 
 }
