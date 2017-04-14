@@ -91,8 +91,9 @@ BmpImage* readbmp(string Filename)
 	FILE* pfile = fopen(Filename.data(), "rb");
 	if (pfile == 0)
 	{
-		cout << "文件打开失败!" << endl;
-		return 0;
+		cout << "cannot open the projection file "<<Filename << endl;
+		cin.get();
+		exit(2);
 	}
 	WORD fileType;
 	fread(&fileType, 1, sizeof(WORD), pfile);
