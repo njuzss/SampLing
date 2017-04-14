@@ -56,7 +56,7 @@ void setSeeds()
 	{		
 		unsigned long index = ulrand() % model->numtriangles;
 		int temp = 0;
-		while (temp < 1000)
+		while (temp < 10000)
 		{
 			bool tag = true;
 			for (int ttt = 0; ttt < model->numseeds; ttt++){
